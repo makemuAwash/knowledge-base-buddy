@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { customerApi, creditApi, getTodayString } from '@/lib/storage';
-import type { Customer } from '@/types';
+import { useAsyncData } from '@/hooks/use-async-data';
 import { toast } from 'sonner';
 import { Plus, Phone, Search, IndianRupee } from 'lucide-react';
 
@@ -16,53 +16,54 @@ export default function CreditManagement() {
   const [custName, setCustName] = useState('');
   const [custMobile, setCustMobile] = useState('');
   const [addCreditOpen, setAddCreditOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDesc, setCreditDesc] = useState('');
-  const [payAmount, setPayAmount] = useState('');
-  const [, refresh] = useState(0);
+  const [payAmounts, setPayAmounts] = useState<Record<string, string>>({});
 
-  const customers = customerApi.getAll();
-  const filtered = customers.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.mobile.includes(search)
-  );
-  const totalOutstanding = customers.reduce((s, c) => s + c.total_outstanding, 0);
+  const { data, refresh } = useAsyncData(async () => {
+    const [customers, credits] = await Promise.all([customerApi.getAll(), creditApi.getAll()]);
+    return { customers, credits };
+  }, []);
 
-  const handleAddCustomer = () => {
+  const customers = data?.customers || [];
+  const credits = data?.credits || [];
+  const filtered = customers.filter((c: any) => c.name.toLowerCase().includes(search.toLowerCase()) || c.mobile.includes(search));
+  const totalOutstanding = customers.reduce((s: number, c: any) => s + c.total_outstanding, 0);
+  const selectedCustomer = customers.find((c: any) => c.id === selectedCustomerId);
+
+  const handleAddCustomer = async () => {
     if (!custName) { toast.error('Enter customer name'); return; }
-    customerApi.create({ name: custName, mobile: custMobile, address: '', total_outstanding: 0 });
+    await customerApi.create({ name: custName, mobile: custMobile, address: '', total_outstanding: 0 });
     toast.success('Customer added!');
-    setCustName(''); setCustMobile('');
-    setAddOpen(false); refresh(n => n + 1);
+    setCustName(''); setCustMobile(''); setAddOpen(false); refresh();
   };
 
-  const handleAddCredit = () => {
+  const handleAddCredit = async () => {
     if (!selectedCustomer || !creditAmount) return;
     const amt = parseFloat(creditAmount);
-    creditApi.create({
+    await creditApi.create({
       customer_id: selectedCustomer.id, date: today,
       items_description: creditDesc, amount: amt,
       amount_paid: 0, balance: amt, status: 'pending', notes: '',
     });
-    customerApi.update(selectedCustomer.id, { total_outstanding: selectedCustomer.total_outstanding + amt });
+    await customerApi.update(selectedCustomer.id, { total_outstanding: selectedCustomer.total_outstanding + amt });
     toast.success('Credit recorded!');
-    setCreditAmount(''); setCreditDesc('');
-    setAddCreditOpen(false); refresh(n => n + 1);
+    setCreditAmount(''); setCreditDesc(''); setAddCreditOpen(false); refresh();
   };
 
-  const handlePayment = (customer: Customer) => {
-    const amt = parseFloat(payAmount);
+  const handlePayment = async (customer: any) => {
+    const amt = parseFloat(payAmounts[customer.id] || '');
     if (!amt || amt <= 0) return;
-    customerApi.update(customer.id, { total_outstanding: Math.max(0, customer.total_outstanding - amt) });
+    await customerApi.update(customer.id, { total_outstanding: Math.max(0, customer.total_outstanding - amt) });
     toast.success(`₹${amt} payment recorded`);
-    setPayAmount(''); refresh(n => n + 1);
+    setPayAmounts(p => ({ ...p, [customer.id]: '' })); refresh();
   };
 
-  const getDaysOverdue = (customer: Customer) => {
-    const txns = creditApi.getAll().filter(t => t.customer_id === customer.id && t.status !== 'paid');
+  const getDaysOverdue = (customer: any) => {
+    const txns = credits.filter((t: any) => t.customer_id === customer.id && t.status !== 'paid');
     if (txns.length === 0) return 0;
-    const oldest = txns.sort((a, b) => a.date.localeCompare(b.date))[0];
+    const oldest = txns.sort((a: any, b: any) => a.date.localeCompare(b.date))[0];
     return Math.floor((Date.now() - new Date(oldest.date).getTime()) / (1000 * 60 * 60 * 24));
   };
 
@@ -71,9 +72,7 @@ export default function CreditManagement() {
       <div className="flex items-center justify-between">
         <h2 className="font-display font-bold text-lg">Credit</h2>
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" className="gap-1"><Plus className="h-3.5 w-3.5" /> Customer</Button>
-          </DialogTrigger>
+          <DialogTrigger asChild><Button size="sm" className="gap-1"><Plus className="h-3.5 w-3.5" /> Customer</Button></DialogTrigger>
           <DialogContent>
             <DialogHeader><DialogTitle>Add Customer</DialogTitle></DialogHeader>
             <div className="space-y-3">
@@ -100,7 +99,7 @@ export default function CreditManagement() {
       {filtered.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">No customers found</CardContent></Card>
       ) : (
-        filtered.map(c => {
+        filtered.map((c: any) => {
           const days = getDaysOverdue(c);
           const urgency = days > 7 ? 'border-destructive/50' : days > 3 ? 'border-accent/50' : '';
           return (
@@ -118,11 +117,12 @@ export default function CreditManagement() {
                 </div>
                 <div className="flex gap-1.5">
                   <Button size="sm" variant="outline" className="flex-1 text-xs gap-1"
-                    onClick={() => { setSelectedCustomer(c); setAddCreditOpen(true); }}>
+                    onClick={() => { setSelectedCustomerId(c.id); setAddCreditOpen(true); }}>
                     <IndianRupee className="h-3 w-3" /> Add Credit
                   </Button>
                   <div className="flex flex-1 gap-1">
-                    <Input type="number" placeholder="₹ Pay" className="text-xs font-mono h-8" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                    <Input type="number" placeholder="₹ Pay" className="text-xs font-mono h-8"
+                      value={payAmounts[c.id] || ''} onChange={e => setPayAmounts(p => ({ ...p, [c.id]: e.target.value }))} />
                     <Button size="sm" variant="outline" className="text-xs h-8" onClick={() => handlePayment(c)}>Pay</Button>
                   </div>
                   {c.mobile && (
