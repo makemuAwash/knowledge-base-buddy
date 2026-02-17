@@ -31,7 +31,7 @@ export default function TopBar() {
       <header className="fixed top-0 left-0 right-0 z-50 border-b border-border bg-card/95 backdrop-blur-md">
         <div className="flex items-center justify-between h-14 px-4 max-w-lg mx-auto">
           <h1 className="text-lg font-display font-bold text-primary truncate">
-            🧁 BakeryPro
+            🧁 ABC-Bakery-3
           </h1>
           <span className="text-sm font-medium text-muted-foreground">
             {current?.label}
