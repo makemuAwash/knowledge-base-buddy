@@ -1,6 +1,6 @@
 {
-  "name": "Bakery Business Manager",
-  "short_name": "BakeryPro",
+  "name": "ABC-Bakery-3 Business Manager",
+  "short_name": "ABC-Bakery-3",
   "description": "Complete bakery business management with P&L tracking",
   "start_url": "/",
   "display": "standalone",
