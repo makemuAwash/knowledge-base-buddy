@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -7,24 +7,33 @@ import {
   getDailyPL, getOverallPL, getTodayString,
   getTotalOutstanding, getWorkersPresent, workerApi
 } from '@/lib/storage';
+import { useAsyncData } from '@/hooks/use-async-data';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const today = getTodayString();
 
-  const daily = useMemo(() => getDailyPL(today), [today]);
-  const overall = useMemo(() => getOverallPL(), []);
-  const outstanding = useMemo(() => getTotalOutstanding(), []);
-  const workersPresent = useMemo(() => getWorkersPresent(today), [today]);
-  const totalWorkers = useMemo(() => workerApi.getAll().filter(w => w.status === 'active').length, []);
+  const { data } = useAsyncData(async () => {
+    const [daily, overall, outstanding, workersPresent, allWorkers] = await Promise.all([
+      getDailyPL(today),
+      getOverallPL(),
+      getTotalOutstanding(),
+      getWorkersPresent(today),
+      workerApi.getAll(),
+    ]);
+    const totalWorkers = allWorkers.filter((w: any) => w.status === 'active').length;
+    return { daily, overall, outstanding, workersPresent, totalWorkers };
+  }, [today]);
 
+  if (!data) return <div className="p-8 text-center text-muted-foreground">Loading...</div>;
+
+  const { daily, overall, outstanding, workersPresent, totalWorkers } = data;
   const recoveryPercent = overall.totalInvestment > 0
     ? Math.min(100, Math.round(((overall.totalSales - overall.totalExpenses) / overall.totalInvestment) * 100))
     : 0;
 
   return (
     <div className="space-y-4 py-4">
-      {/* Today's P&L Card */}
       <Card className="bg-primary text-primary-foreground">
         <CardContent className="p-5">
           <p className="text-xs font-medium opacity-80 mb-1">Today's Profit/Loss</p>
@@ -41,7 +50,6 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Stats */}
       <div className="grid grid-cols-3 gap-3">
         <Card>
           <CardContent className="p-3 text-center">
@@ -66,7 +74,6 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Investment Recovery Bar */}
       {overall.totalInvestment > 0 && (
         <Card>
           <CardContent className="p-4">
@@ -77,47 +84,27 @@ export default function Dashboard() {
               </span>
             </div>
             <div className="h-2.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-success rounded-full transition-all"
-                style={{ width: `${Math.max(0, recoveryPercent)}%` }}
-              />
+              <div className="h-full bg-success rounded-full transition-all" style={{ width: `${Math.max(0, recoveryPercent)}%` }} />
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Button onClick={() => navigate('/sales')} className="h-12 gap-2">
-          <Plus className="h-4 w-4" /> Add Sale
-        </Button>
-        <Button onClick={() => navigate('/expenses')} variant="outline" className="h-12 gap-2">
-          <Plus className="h-4 w-4" /> Add Expense
-        </Button>
+        <Button onClick={() => navigate('/sales')} className="h-12 gap-2"><Plus className="h-4 w-4" /> Add Sale</Button>
+        <Button onClick={() => navigate('/expenses')} variant="outline" className="h-12 gap-2"><Plus className="h-4 w-4" /> Add Expense</Button>
       </div>
 
-      {/* Overall Summary */}
       <Card>
         <CardContent className="p-4 space-y-2">
           <h3 className="font-display font-semibold text-sm">Overall Summary</h3>
           <div className="space-y-1.5 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Investment</span>
-              <span className="font-mono">₹{overall.totalInvestment.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Sales</span>
-              <span className="font-mono text-success">₹{overall.totalSales.toLocaleString('en-IN')}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Expenses</span>
-              <span className="font-mono text-destructive">₹{overall.totalExpenses.toLocaleString('en-IN')}</span>
-            </div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total Investment</span><span className="font-mono">₹{overall.totalInvestment.toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total Sales</span><span className="font-mono text-success">₹{overall.totalSales.toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Total Expenses</span><span className="font-mono text-destructive">₹{overall.totalExpenses.toLocaleString('en-IN')}</span></div>
             <div className="border-t border-border pt-1.5 flex justify-between font-semibold">
               <span>Net P&L</span>
-              <span className={`font-mono ${overall.profit >= 0 ? 'text-success' : 'text-destructive'}`}>
-                ₹{overall.profit.toLocaleString('en-IN')}
-              </span>
+              <span className={`font-mono ${overall.profit >= 0 ? 'text-success' : 'text-destructive'}`}>₹{overall.profit.toLocaleString('en-IN')}</span>
             </div>
           </div>
         </CardContent>
