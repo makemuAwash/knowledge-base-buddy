@@ -10,10 +10,10 @@ import { Plus, IndianRupee } from 'lucide-react';
 
 export default function Sales() {
   const today = getTodayString();
-  const [total, setTotal] = useState('');
   const [cash, setCash] = useState('');
   const [online, setOnline] = useState('');
   const [credit, setCredit] = useState('');
+  const total = (parseFloat(cash) || 0) + (parseFloat(online) || 0) + (parseFloat(credit) || 0);
   const [notes, setNotes] = useState('');
   const [date, setDate] = useState(today);
 
@@ -22,17 +22,16 @@ export default function Sales() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const totalAmt = parseFloat(total) || 0;
-    if (totalAmt <= 0) { toast.error('Enter a valid amount'); return; }
+    if (total <= 0) { toast.error('Enter a valid amount'); return; }
     await salesApi.create({
-      date, total_amount: totalAmt,
+      date, total_amount: total,
       cash_amount: parseFloat(cash) || 0,
       online_amount: parseFloat(online) || 0,
       credit_amount: parseFloat(credit) || 0,
       notes,
     });
     toast.success('Sale recorded!');
-    setTotal(''); setCash(''); setOnline(''); setCredit(''); setNotes('');
+    setCash(''); setOnline(''); setCredit(''); setNotes('');
     refresh();
   };
 
@@ -56,14 +55,14 @@ export default function Sales() {
       <Card>
         <CardContent className="p-4">
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <Label className="text-xs">Total Amount *</Label>
-              <Input type="number" placeholder="0" value={total} onChange={e => setTotal(e.target.value)} className="font-mono text-lg" />
-            </div>
             <div className="grid grid-cols-3 gap-2">
               <div><Label className="text-xs">Cash</Label><Input type="number" placeholder="0" value={cash} onChange={e => setCash(e.target.value)} className="font-mono text-sm" /></div>
               <div><Label className="text-xs">Online</Label><Input type="number" placeholder="0" value={online} onChange={e => setOnline(e.target.value)} className="font-mono text-sm" /></div>
               <div><Label className="text-xs">Credit</Label><Input type="number" placeholder="0" value={credit} onChange={e => setCredit(e.target.value)} className="font-mono text-sm" /></div>
+            </div>
+            <div>
+              <Label className="text-xs">Total Amount (auto-calculated)</Label>
+              <Input type="number" value={total > 0 ? total : ''} readOnly className="font-mono text-lg bg-muted" />
             </div>
             <div><Label className="text-xs">Notes</Label><Input placeholder="Optional notes..." value={notes} onChange={e => setNotes(e.target.value)} /></div>
             <Button type="submit" className="w-full gap-2"><Plus className="h-4 w-4" /> Record Sale</Button>
