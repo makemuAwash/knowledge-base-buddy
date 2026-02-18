@@ -14,6 +14,7 @@ import Investments from "./pages/Investments";
 import CalendarView from "./pages/CalendarView";
 import SettingsPage from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import InstallPrompt from "./components/InstallPrompt";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <InstallPrompt />
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
