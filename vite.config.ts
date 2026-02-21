@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // we use public/manifest.json
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/~oauth/],
       },
     }),
