@@ -129,8 +129,26 @@ export default function Reports() {
 
   const handleShare = async () => {
     const text = `ABC-Bakery-3 Report (${startDate} to ${endDate})\nSales: ₹${totalSales.toLocaleString('en-IN')}\nExpenses: ₹${totalExpenses.toLocaleString('en-IN')}\nWages: ₹${totalWages.toLocaleString('en-IN')}\nProfit: ₹${profit.toLocaleString('en-IN')}`;
-    if (navigator.share) { await navigator.share({ title: 'ABC-Bakery-3 Report', text }); }
-    else { navigator.clipboard.writeText(text); toast.success('Copied to clipboard!'); }
+    
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'ABC-Bakery-3 Report',
+          text: text,
+        });
+        toast.success('Shared successfully!');
+      } else {
+        // Fallback: Copy to clipboard
+        await navigator.clipboard.writeText(text);
+        toast.success('Copied to clipboard!');
+      }
+    } catch (error: any) {
+      // Handle abort error (user cancels share)
+      if (error.name !== 'AbortError') {
+        console.error('Share failed:', error);
+        toast.error('Failed to share');
+      }
+    }
   };
 
   return (

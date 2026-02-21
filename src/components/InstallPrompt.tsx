@@ -18,12 +18,15 @@ const InstallPrompt = () => {
 
     // iOS detection
     const ua = navigator.userAgent;
-    if (/iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream) {
+    const iosDetected = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+    
+    if (iosDetected) {
       setIsIOS(true);
       setShow(true);
       return;
     }
 
+    // Handle beforeinstallprompt for Android
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -31,6 +34,13 @@ const InstallPrompt = () => {
     };
 
     window.addEventListener("beforeinstallprompt", handler);
+    
+    // If event already occurred before component mounted, try to get it from window
+    if ((window as any).deferredPrompt) {
+      setDeferredPrompt((window as any).deferredPrompt);
+      setShow(true);
+    }
+
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
