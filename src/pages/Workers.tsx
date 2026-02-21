@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { workerApi, attendanceApi, getTodayString } from '@/lib/storage';
 import { useAsyncData } from '@/hooks/use-async-data';
-import type { Worker, WorkerRole, AttendanceStatus } from '@/types';
+import type { WorkerRole, AttendanceStatus } from '@/types';
 import { toast } from 'sonner';
-import { UserPlus, Check } from 'lucide-react';
+import { UserPlus, Check, Pencil, Trash2 } from 'lucide-react';
 
 const statusColors: Record<AttendanceStatus, string> = {
   present: 'bg-success/20 text-success border-success/30',
@@ -30,6 +31,17 @@ export default function Workers() {
   const [mobile, setMobile] = useState('');
   const [role, setRole] = useState<WorkerRole>('Baker');
   const [wage, setWage] = useState('');
+
+  // Edit state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [editName, setEditName] = useState('');
+  const [editMobile, setEditMobile] = useState('');
+  const [editRole, setEditRole] = useState<WorkerRole>('Baker');
+  const [editWage, setEditWage] = useState('');
+
+  // Delete state
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data, refresh } = useAsyncData(async () => {
     const [allWorkers, att] = await Promise.all([workerApi.getAll(), attendanceApi.getByDate(date)]);
@@ -70,6 +82,37 @@ export default function Workers() {
     toast.success('Worker added!');
     setName(''); setMobile(''); setWage('');
     setAddOpen(false); refresh();
+  };
+
+  const openEdit = (w: any) => {
+    setEditItem(w);
+    setEditName(w.name);
+    setEditMobile(w.mobile || '');
+    setEditRole(w.role);
+    setEditWage(String(w.per_day_wage));
+    setEditOpen(true);
+  };
+
+  const handleEdit = async () => {
+    if (!editItem || !editName || !editWage) { toast.error('Fill required fields'); return; }
+    await workerApi.update(editItem.id, {
+      name: editName,
+      mobile: editMobile,
+      role: editRole,
+      per_day_wage: parseFloat(editWage),
+    });
+    toast.success('Worker updated!');
+    setEditOpen(false);
+    refresh();
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    // Soft delete - mark as inactive
+    await workerApi.update(deleteId, { status: 'inactive' });
+    toast.success('Worker removed');
+    setDeleteId(null);
+    refresh();
   };
 
   return (
@@ -143,7 +186,15 @@ export default function Workers() {
                       <p className="font-medium text-sm">{w.name}</p>
                       <p className="text-xs text-muted-foreground">{w.role} · ₹{w.per_day_wage}/day</p>
                     </div>
-                    {att && <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColors[att.status as AttendanceStatus]}`}>{statusLabels[att.status as AttendanceStatus]}</span>}
+                    <div className="flex items-center gap-1">
+                      {att && <span className={`text-xs px-2 py-0.5 rounded-full border ${statusColors[att.status as AttendanceStatus]}`}>{statusLabels[att.status as AttendanceStatus]}</span>}
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(w)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeleteId(w.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex gap-1.5">
                     {(['present', 'absent', 'half_day', 'late'] as AttendanceStatus[]).map(s => (
@@ -161,6 +212,47 @@ export default function Workers() {
           })}
         </div>
       )}
+
+      {/* Edit Worker Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Worker</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Name *</Label><Input value={editName} onChange={e => setEditName(e.target.value)} /></div>
+            <div><Label className="text-xs">Mobile</Label><Input value={editMobile} onChange={e => setEditMobile(e.target.value)} /></div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Role</Label>
+                <Select value={editRole} onValueChange={(v: WorkerRole) => setEditRole(v)}>
+                  <SelectTrigger className="text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Baker">Baker</SelectItem>
+                    <SelectItem value="Helper">Helper</SelectItem>
+                    <SelectItem value="Delivery">Delivery</SelectItem>
+                    <SelectItem value="Cleaner">Cleaner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div><Label className="text-xs">Daily Wage *</Label><Input type="number" value={editWage} onChange={e => setEditWage(e.target.value)} className="font-mono" /></div>
+            </div>
+            <Button onClick={handleEdit} className="w-full">Save Changes</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={open => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Worker</AlertDialogTitle>
+            <AlertDialogDescription>This will mark the worker as inactive. Their attendance history will be preserved.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
